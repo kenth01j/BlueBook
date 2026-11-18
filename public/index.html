@@ -1,0 +1,479 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#123c73" />
+
+  <title>BiPSU BlueBook | Online Reservation & Purchasing</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&family=Manrope:wght@500;600;700;800&display=swap"
+    rel="stylesheet"
+  >
+
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+
+<body>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <!-- AUTHENTICATION VIEW -->
+  <main id="authView" class="auth-layout">
+
+    <!-- LEFT BRAND PANEL -->
+    <section class="auth-brand-panel">
+
+      <div class="brand-lockup brand-lockup-light">
+        <img
+          src="/assets/bipsu-logo.png"
+          alt="Biliran Province State University Logo"
+          class="brand-logo"
+        >
+
+        <div>
+          <strong>BiPSU</strong>
+          <span>BLUEBOOK</span>
+        </div>
+      </div>
+
+      <div class="brand-copy">
+        <span class="eyebrow eyebrow-light">
+          BILIRAN PROVINCE STATE UNIVERSITY
+        </span>
+
+        <h1>
+          Your Bluebook,<br>
+          <em>one click away.</em>
+        </h1>
+
+        <p>
+          Reserve or purchase your examination Bluebook online,
+          then claim it at the designated campus counter.
+        </p>
+      </div>
+
+      <div class="brand-footer">
+        <span>STUDENT CONVENIENCE</span>
+        <span>•</span>
+        <span>SMART CAMPUS SERVICE</span>
+      </div>
+
+      <div class="decor-orbit orbit-one"></div>
+      <div class="decor-orbit orbit-two"></div>
+
+    </section>
+
+    <!-- RIGHT LOGIN PANEL -->
+    <section class="auth-form-panel">
+
+      <button
+        class="theme-toggle auth-theme-toggle"
+        type="button"
+        data-theme-toggle
+        aria-label="Switch to dark mode"
+        aria-pressed="false"
+        title="Switch to dark mode"
+      >
+        <span data-theme-toggle-icon aria-hidden="true">☾</span>
+      </button>
+
+      <div class="auth-form-wrap">
+
+        <!-- MOBILE BRAND -->
+        <div class="mobile-brand brand-lockup">
+          <img
+            src="/assets/bipsu-logo.png"
+            alt="BiPSU Logo"
+            class="brand-logo"
+          >
+
+          <div>
+            <strong>BiPSU</strong>
+            <span>BLUEBOOK</span>
+          </div>
+        </div>
+
+        <!-- FORM HEADING -->
+        <div class="form-heading">
+          <span class="eyebrow">WELCOME TO BLUEBOOK</span>
+
+          <h2 id="authTitle">Sign in to your account</h2>
+
+          <p id="authSubtitle">
+            Access your reservations and Bluebook orders.
+          </p>
+        </div>
+
+        <!-- AUTHENTICATION TABS -->
+        <div class="auth-tabs">
+          <button
+            class="auth-tab active"
+            data-auth-tab="login"
+            type="button"
+          >
+            Sign in
+          </button>
+
+          <button
+            class="auth-tab"
+            data-auth-tab="register"
+            type="button"
+          >
+            Create account
+          </button>
+        </div>
+
+        <!-- LOGIN FORM -->
+        <form id="loginForm" class="auth-form">
+
+          <label>
+            Email address
+
+            <input
+              id="loginEmail"
+              type="email"
+              placeholder="you@bipsu.edu.ph"
+              required
+            >
+          </label>
+
+          <label>
+            Password
+
+            <div class="password-field">
+              <input
+                id="loginPassword"
+                type="password"
+                placeholder="Enter your password"
+                required
+              >
+
+              <button
+                type="button"
+                class="show-password"
+                data-toggle-password="loginPassword"
+              >
+                Show
+              </button>
+            </div>
+          </label>
+
+          <button class="btn btn-primary btn-full" type="submit">
+            Sign in <span>→</span>
+          </button>
+
+        </form>
+
+        <!-- REGISTRATION FORM -->
+        <form id="registerForm" class="auth-form hidden">
+
+          <label>
+            Full name
+
+            <input
+              id="registerName"
+              type="text"
+              placeholder="Enter your full name"
+              required
+            >
+          </label>
+
+          <label>
+            Student ID
+
+            <input
+              id="registerStudentId"
+              type="text"
+              placeholder="Enter your student ID"
+              required
+            >
+          </label>
+
+          <label>
+            University email
+
+            <input
+              id="registerEmail"
+              type="email"
+              placeholder="you@bipsu.edu.ph"
+              required
+            >
+          </label>
+
+          <label>
+            Password
+
+            <input
+              id="registerPassword"
+              type="password"
+              minlength="8"
+              placeholder="At least 8 characters"
+              required
+            >
+          </label>
+
+          <button class="btn btn-primary btn-full" type="submit">
+            Create student account <span>→</span>
+          </button>
+
+        </form>
+
+        <!-- ACCOUNT INFORMATION -->
+        <div class="demo-note">
+          <span class="demo-dot"></span>
+
+          <div>
+            <strong>Account access</strong>
+
+            <p>
+              Students: create an account using the registration tab.<br>
+              Administrator: use the account configured by the system administrator.
+            </p>
+          </div>
+        </div>
+
+        <p class="auth-disclaimer">
+          Temporary GCash/Maya proof-upload flow. Staff must verify each receipt;
+          no live payment gateway is connected.
+        </p>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- MAIN APPLICATION -->
+  <div id="appView" class="app-shell hidden">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+
+      <div class="sidebar-brand brand-lockup">
+        <img
+          src="/assets/bipsu-logo.png"
+          alt="BiPSU Logo"
+          class="brand-logo"
+        >
+
+        <div>
+          <strong>BiPSU</strong>
+          <span>BLUEBOOK</span>
+        </div>
+      </div>
+
+      <div id="sidebarWorkspaceLabel" class="sidebar-label">WORKSPACE</div>
+
+      <!-- STUDENT NAVIGATION -->
+      <nav id="studentNav" class="side-nav">
+
+        <button class="nav-link active" data-page="dashboard">
+          <span class="nav-icon">⌂</span>
+          Overview
+        </button>
+
+        <button class="nav-link" data-page="catalog">
+          <span class="nav-icon">▤</span>
+          Bluebook catalog
+        </button>
+
+        <button class="nav-link" data-page="orders">
+          <span class="nav-icon">▣</span>
+          My orders
+        </button>
+
+      </nav>
+
+      <!-- ADMIN NAVIGATION -->
+      <nav id="adminNav" class="side-nav hidden">
+
+        <button class="nav-link active" data-page="adminDashboard">
+          <span class="nav-icon">⌂</span>
+          Overview
+        </button>
+
+        <button class="nav-link" data-page="inventory">
+          <span class="nav-icon">▤</span>
+          Inventory
+        </button>
+
+        <button class="nav-link" data-page="manageOrders">
+          <span class="nav-icon">▣</span>
+          Orders & claims
+        </button>
+
+        <button id="adminReportsNav" class="nav-link" data-page="reports">
+          <span class="nav-icon">▥</span>
+          Reports
+        </button>
+
+        <button id="studentLookupNav" class="nav-link hidden" data-page="manageStudents">
+          <span class="nav-icon">⌕</span>
+          Student lookup
+        </button>
+
+      </nav>
+
+      <nav id="cashierNav" class="side-nav hidden">
+        <button class="nav-link active" data-page="cashierDashboard">
+          <span class="nav-icon">▣</span>
+          Payment desk
+        </button>
+        <button id="cashierStudentLookupNav" class="nav-link" data-page="manageStudents">
+          <span class="nav-icon">⌕</span>
+          Student lookup
+        </button>
+      </nav>
+
+      <!-- SIDEBAR FOOTER -->
+      <div class="sidebar-bottom">
+
+        <div class="help-card">
+          <div class="help-icon">?</div>
+
+          <strong>Need assistance?</strong>
+
+          <p>
+            Contact the designated Bluebook counter for order concerns.
+          </p>
+        </div>
+
+        <button id="logoutBtn" class="logout-link">
+          <span>↪</span>
+          Sign out
+        </button>
+
+      </div>
+
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <section class="main-area">
+
+      <!-- TOPBAR -->
+      <header class="topbar">
+
+        <button
+          id="menuToggle"
+          class="menu-toggle"
+          aria-label="Toggle menu"
+        >
+          ☰
+        </button>
+
+        <div class="breadcrumb">
+          BiPSU <span>/</span>
+          <strong id="breadcrumbPage">Overview</strong>
+        </div>
+
+        <div class="topbar-right">
+
+          <button
+            id="themeToggle"
+            class="theme-toggle"
+            type="button"
+            aria-label="Switch to dark mode"
+            aria-pressed="false"
+            title="Switch to dark mode"
+            data-theme-toggle
+          >
+            <span data-theme-toggle-icon aria-hidden="true">☾</span>
+          </button>
+
+          <div id="studentNotificationArea" class="student-notification-area hidden">
+            <button
+              id="studentNotificationButton"
+              class="notification-bell"
+              type="button"
+              aria-label="Notifications"
+              aria-expanded="false"
+              aria-controls="studentNotificationPanel"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" />
+              </svg>
+              <span id="studentNotificationCount" class="notification-badge hidden"></span>
+            </button>
+
+            <section id="studentNotificationPanel" class="notification-panel hidden" aria-label="Notifications">
+              <div class="notification-panel-heading">
+                <strong>Notifications</strong>
+                <button id="closeStudentNotifications" type="button" aria-label="Close notifications">×</button>
+              </div>
+              <div id="studentNotificationList" class="notification-list"></div>
+            </section>
+          </div>
+
+          <span class="campus-chip">
+            <i></i>
+            Campus service
+          </span>
+
+          <div class="user-mini">
+
+            <div id="avatarInitial" class="avatar">S</div>
+
+            <div>
+              <strong id="headerName">Student</strong>
+              <span id="headerRole">Student account</span>
+            </div>
+
+          </div>
+
+        </div>
+
+      </header>
+
+      <!-- PAGE CONTENT -->
+      <div class="page-content">
+
+        <section id="page-dashboard" class="page active"></section>
+
+        <section id="page-catalog" class="page"></section>
+
+        <section id="page-orders" class="page"></section>
+
+        <section id="page-adminDashboard" class="page"></section>
+
+        <section id="page-cashierDashboard" class="page"></section>
+
+        <section id="page-inventory" class="page"></section>
+
+        <section id="page-manageOrders" class="page"></section>
+
+        <section id="page-reports" class="page"></section>
+
+        <section id="page-manageStudents" class="page"></section>
+
+      </div>
+
+      <!-- APPLICATION FOOTER -->
+      <footer class="app-footer">
+
+        <span>
+          BiPSU BlueBook
+          <span class="footer-separator">•</span>
+          Online reservation & purchasing
+        </span>
+
+        <span>Prototype interface · For evaluation</span>
+
+      </footer>
+
+    </section>
+
+  </div>
+
+  <!-- MODAL ROOT -->
+  <div id="modalRoot"></div>
+
+  <!-- JAVASCRIPT -->
+  <script src="/js/app.js"></script>
+
+</body>
+</html>

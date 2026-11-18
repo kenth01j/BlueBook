@@ -1,0 +1,18 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Start BiPSU BlueBook",
+			"type": "shell",
+			"command": "npm.cmd",
+			"args": [
+				"--prefix",
+				".\\bipsu-bluebook-complete",
+				"start"
+			],
+			"isBackground": true,
+			"problemMatcher": [],
+			"group": "build"
+		}
+	]
+}
