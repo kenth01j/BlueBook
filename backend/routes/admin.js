@@ -5,6 +5,7 @@ const User = require('../models/User');
 const Product = require('../models/Product');
 const Order = require('../models/Order');
 const Payment = require('../models/Payment');
+const AppSettings = require('../models/AppSettings');
 
 const { requireAuth, requireRole } = require('../middleware/auth');
 
@@ -52,6 +53,44 @@ router.get('/students', requireRole('admin', 'cashier'), async (req, res, next) 
 });
 
 router.use(requireRole('admin'));
+
+router.get('/settings', async (_req, res, next) => {
+  try {
+    const settings = await AppSettings.findOneAndUpdate(
+      { key: 'bluebook' },
+      { $setOnInsert: { counterExpirationHours: 8 } },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    ).select('counterExpirationHours');
+
+    res.json({ counterExpirationHours: settings.counterExpirationHours });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch('/settings/counter-expiration', async (req, res, next) => {
+  try {
+    const hours = Number(req.body.counterExpirationHours);
+    if (!Number.isInteger(hours) || hours < 1 || hours > 168) {
+      return res.status(400).json({
+        message: 'Counter payment expiration must be a whole number from 1 to 168 hours.'
+      });
+    }
+
+    const settings = await AppSettings.findOneAndUpdate(
+      { key: 'bluebook' },
+      { $set: { counterExpirationHours: hours } },
+      { upsert: true, new: true, setDefaultsOnInsert: true, runValidators: true }
+    ).select('counterExpirationHours');
+
+    res.json({
+      message: `Counter reservation expiration updated to ${hours} hour${hours === 1 ? '' : 's'}. Existing reservations keep their original payment deadline.`,
+      counterExpirationHours: settings.counterExpirationHours
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 
 async function salesSince(start, end) {
   const [sales] = await Order.aggregate([

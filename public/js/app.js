@@ -17,6 +17,7 @@ const state = {
   adminReport: null,
   reportLoading: false,
   reportError: '',
+  counterExpirationHours: 8,
   verifiedReceiptIds: null,
   dismissedNotificationOrderIds: new Set(),
   notificationSwipe: null,
@@ -291,8 +292,10 @@ async function refreshData() {
 
   if (state.user.role === 'admin') {
     requests.push(api('/api/admin/dashboard'));
+    requests.push(api('/api/payments'));
+    requests.push(api('/api/admin/settings'));
   }
-  if (['admin', 'cashier'].includes(state.user.role)) {
+  if (state.user.role === 'cashier') {
     requests.push(api('/api/payments'));
   }
   if (state.user.role === 'cashier') {
@@ -320,6 +323,9 @@ async function refreshData() {
   state.adminStats = state.user.role === 'admin'
     ? results[2]?.dashboard || null
     : null;
+  state.counterExpirationHours = state.user.role === 'admin'
+    ? Number(results[4]?.counterExpirationHours || 8)
+    : state.counterExpirationHours;
   state.cashierDashboard = state.user.role === 'cashier'
     ? results[3]?.dashboard || null
     : null;
@@ -925,6 +931,16 @@ function ordersTable(orders, admin = false) {
                 </td>
               ` : `
                 <td>
+                  ${['RESERVED', 'PENDING_PAYMENT', 'PAID'].includes(o.status) ? `
+                    <button
+                      class="btn btn-light btn-small"
+                      data-cancel-order="${o.id}"
+                      aria-label="Cancel order ${escapeHtml(o.ref)}"
+                      style="margin-bottom:5px"
+                    >
+                      Cancel order
+                    </button>
+                  ` : ''}
                   ${o.status === 'PENDING_PAYMENT' && isOnlinePaymentMethod(o.paymentMethod)
                     ? o.paymentStatus === 'PENDING'
                       ? '<span class="muted">Receipt awaiting verification</span>'
@@ -1698,6 +1714,22 @@ function inventoryPage() {
 
       ${inventoryTable()}
     </div>
+
+    <div class="panel" style="margin-top:18px">
+      <div class="panel-title">
+        <div>
+          <h3>Counter payment expiration</h3>
+          <p>Set how long new counter reservations remain payable.</p>
+        </div>
+      </div>
+      <div style="padding:0 20px 20px">
+        <strong>${escapeHtml(String(state.counterExpirationHours))} hours</strong>
+        <p class="muted">Existing reservations keep their original deadline.</p>
+        <button class="btn btn-light btn-small" type="button" data-edit-counter-expiration>
+          Update expiration time
+        </button>
+      </div>
+    </div>
   `;
 }
 
@@ -2325,6 +2357,59 @@ function updateStock(productId) {
   });
 }
 
+function updateCounterExpiration() {
+  $('#modalRoot').innerHTML = `
+    <div class="modal-backdrop">
+      <div class="modal">
+        <div class="modal-head">
+          <div>
+            <h3>Update counter payment expiration</h3>
+            <p>New counter reservations only</p>
+          </div>
+          <button class="modal-close" data-close-modal>×</button>
+        </div>
+        <form id="counterExpirationForm" class="modal-form">
+          <label>
+            Payment deadline (hours)
+            <input
+              id="counterExpirationHours"
+              type="number"
+              min="1"
+              max="168"
+              step="1"
+              value="${Number(state.counterExpirationHours)}"
+              required
+            >
+          </label>
+          <p class="muted">Existing counter reservations keep their current payment deadline.</p>
+          <button class="btn btn-primary btn-full" type="submit">Save expiration time</button>
+        </form>
+      </div>
+    </div>
+  `;
+
+  $('#counterExpirationForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    const submitButton = $('#counterExpirationForm button[type="submit"]');
+    submitButton.disabled = true;
+    try {
+      const result = await api('/api/admin/settings/counter-expiration', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          counterExpirationHours: Number($('#counterExpirationHours').value)
+        })
+      });
+      state.counterExpirationHours = Number(result.counterExpirationHours);
+      $('#modalRoot').innerHTML = '';
+      renderPage(state.page);
+      toast(result.message);
+    } catch (error) {
+      submitButton.disabled = false;
+      toast(error.message);
+    }
+  });
+}
+
 function updatePrice(productId) {
   const product = state.products.find(item => item.id === productId);
   if (!product) return;
@@ -2752,16 +2837,19 @@ async function cancelOrder(orderId) {
   const order = state.orders.find(item => item.id === orderId);
   if (!order) return toast('Order not found. Refresh the orders list and try again.');
 
-  const reason = prompt(`Enter a reason for cancelling order ${order.ref}:`);
-  if (reason === null) return;
-  const trimmedReason = reason.trim();
-  if (!trimmedReason || trimmedReason.length > 500) {
-    return toast('Enter a cancellation reason of 1 to 500 characters.');
-  }
-
   const isPaid = order.status === 'PAID';
+  const isStudent = state.user.role === 'student';
+  let reason = 'Cancelled by student.';
+  if (!isStudent) {
+    const suppliedReason = prompt(`Enter a reason for cancelling order ${order.ref}:`);
+    if (suppliedReason === null) return;
+    reason = suppliedReason.trim();
+    if (!reason || reason.length > 500) {
+      return toast('Enter a cancellation reason of 1 to 500 characters.');
+    }
+  }
   const confirmation = isPaid
-    ? `Cancel paid order ${order.ref}? Its stock will return to available inventory and a manual refund will be required. No refund is issued automatically.`
+    ? `Cancel paid order ${order.ref}? Its stock will return to available inventory. The refund must be claimed at the counter; no automatic refund is issued.`
     : `Cancel order ${order.ref}? Its reserved stock will be released. The order will remain in reports.`;
   const confirmed = confirm(confirmation);
   if (!confirmed) return;
@@ -2769,7 +2857,7 @@ async function cancelOrder(orderId) {
   try {
     const result = await api(`/api/orders/${encodeURIComponent(orderId)}/cancel`, {
       method: 'PATCH',
-      body: JSON.stringify({ reason: trimmedReason })
+      body: JSON.stringify({ reason })
     });
     await refreshData();
     renderPage(state.page);
@@ -3044,6 +3132,10 @@ document.addEventListener('click', async e => {
   const priceButton = e.target.closest('[data-edit-price]');
   if (priceButton) {
     updatePrice(priceButton.dataset.editPrice);
+  }
+
+  if (e.target.closest('[data-edit-counter-expiration]')) {
+    updateCounterExpiration();
   }
 
   const receipt = e.target.closest('[data-show-receipt]');

@@ -12,6 +12,7 @@ const Payment = require('../models/Payment');
 const claimPaidOrder = require('../services/claimPaidOrder');
 const scanClaimReceipt = require('../services/scanClaimReceipt');
 const assertVerifiedReceipt = require('../services/assertVerifiedReceipt');
+const { getCounterExpirationHours } = require('../services/orderSettings');
 
 const { requireAuth, requireRole } = require('../middleware/auth');
 
@@ -217,6 +218,10 @@ router.post('/', async (req, res, next) => {
     const reference =
       `BB-${Date.now().toString().slice(-8)}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
 
+    const counterExpirationHours = paymentMethod === 'CASH'
+      ? await getCounterExpirationHours()
+      : 24;
+
     const order = await Order.create({
       reference,
       user: req.user._id,
@@ -228,7 +233,7 @@ router.post('/', async (req, res, next) => {
       type,
       paymentMethod,
       status: ['GCASH', 'MAYA'].includes(paymentMethod) ? 'PENDING_PAYMENT' : 'RESERVED',
-      expiresAt: new Date(Date.now() + (paymentMethod === 'CASH' ? 8 : 24) * 60 * 60 * 1000)
+      expiresAt: new Date(Date.now() + counterExpirationHours * 60 * 60 * 1000)
     });
 
     res.status(201).json({
@@ -310,7 +315,7 @@ router.get(
   }
 );
 
-router.patch('/:id/cancel', requireRole('admin'), async (req, res, next) => {
+router.patch('/:id/cancel', requireRole('admin', 'student'), async (req, res, next) => {
   const session = await mongoose.startSession();
 
   try {
@@ -318,7 +323,10 @@ router.patch('/:id/cancel', requireRole('admin'), async (req, res, next) => {
       return res.status(400).json({ message: 'Invalid order ID.' });
     }
 
-    const reason = typeof req.body.reason === 'string' ? req.body.reason.trim() : '';
+    const suppliedReason = typeof req.body.reason === 'string' ? req.body.reason.trim() : '';
+    const reason = req.user.role === 'student'
+      ? suppliedReason || 'Cancelled by student.'
+      : suppliedReason;
     if (!reason || reason.length > 500) {
       return res.status(400).json({ message: 'Provide a cancellation reason of 1 to 500 characters.' });
     }
@@ -330,6 +338,10 @@ router.patch('/:id/cancel', requireRole('admin'), async (req, res, next) => {
       const order = await Order.findById(req.params.id).session(session);
       if (!order) {
         throw Object.assign(new Error('Order not found.'), { status: 404 });
+      }
+
+      if (req.user.role === 'student' && order.user.toString() !== req.user._id.toString()) {
+        throw Object.assign(new Error('You are not authorized to cancel this order.'), { status: 403 });
       }
 
       if (!['RESERVED', 'PENDING_PAYMENT', 'PAID'].includes(order.status)) {
@@ -384,7 +396,7 @@ router.patch('/:id/cancel', requireRole('admin'), async (req, res, next) => {
 
       await Payment.updateMany(
         { order: order._id, status: 'PENDING' },
-        { $set: { status: 'CANCELLED', remarks: 'Order cancelled by admin.' } },
+        { $set: { status: 'CANCELLED', remarks: `Order cancelled by ${req.user.role}.` } },
         { session }
       );
 
