@@ -6,6 +6,7 @@ const mongoose = require('mongoose');
 const connectDB = require('./config/db');
 const MongoRateLimitStore = require('./middleware/MongoRateLimitStore');
 const proofStorage = require('./services/paymentProofStorage');
+const isLoginTestOnly = require('./utils/isLoginTestOnly');
 
 let storageConfiguration;
 
@@ -19,7 +20,7 @@ function configureApp(app) {
   app.disable('x-powered-by');
   app.use(helmet({ contentSecurityPolicy: false }));
   app.use(express.json({ limit: '100kb' }));
-  if (process.env.LOGIN_TEST_ONLY === 'true') {
+  if (isLoginTestOnly()) {
     app.use('/api', require('./middleware/loginTestOnly'));
   }
   app.use('/api/cron', require('./routes/cron'));

@@ -5,6 +5,7 @@ const connectDB = require('./config/db');
 const expirePendingOrders = require('./services/expireOrders');
 const runWithDistributedJobLock = require('./services/distributedJobLock');
 const proofStorage = require('./services/paymentProofStorage');
+const isLoginTestOnly = require('./utils/isLoginTestOnly');
 const PORT = process.env.PORT || 5000;
 const workerId = process.env.APP_WORKER_ID || 'single';
 let expirationInterval;
@@ -50,7 +51,7 @@ async function startServer() {
   }
   proofStorage.validateConfiguration();
   await connectDB();
-  if (process.env.RUN_ORDER_EXPIRATION !== 'false' && process.env.LOGIN_TEST_ONLY !== 'true') {
+  if (process.env.RUN_ORDER_EXPIRATION !== 'false' && !isLoginTestOnly()) {
     const expireWithLock = () => runWithDistributedJobLock('expire-pending-orders', expirePendingOrders);
     await expireWithLock().catch(error => console.error('Initial expiry check failed:', error.message));
     expirationInterval = setInterval(

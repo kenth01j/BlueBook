@@ -241,7 +241,7 @@ The root `index.js` exports the Express application for Vercel. Vercel serves fi
 
 Atlas must be reachable from Vercel. Prefer a supported static egress/secure connection arrangement and restrict Atlas Network Access accordingly; do not expose database access broadly just to make the connection work. If migrating existing payment proofs, use `npm run migrate:payment-proofs` with a backup and follow the migration instructions above.
 
-For a sign-in-only test without object storage, set `LOGIN_TEST_ONLY=true` and `PAYMENT_PROOF_STORAGE=local`. This mode permits sign-in and read requests but disables payment endpoints and all API write operations; order expiration is also paused. Do not use it for production or transactions. Remove `LOGIN_TEST_ONLY` and configure private S3-compatible storage before enabling normal use.
+For a sign-in-only test without object storage, set `LOGIN_TEST_ONLY=true` and `PAYMENT_PROOF_STORAGE=local` in a non-production local environment. This mode permits sign-in and read requests but disables payment endpoints and all API write operations; order expiration is also paused. It is ignored when `NODE_ENV=production` or on Render. Do not use it for production or transactions. Remove `LOGIN_TEST_ONLY` and configure private S3-compatible storage before enabling normal use.
 
 ## 15. Troubleshooting
 

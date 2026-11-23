@@ -1,7 +1,8 @@
 const readMethods = new Set(['GET', 'HEAD', 'OPTIONS']);
+const isLoginTestOnly = require('../utils/isLoginTestOnly');
 
 module.exports = function loginTestOnly(req, res, next) {
-  if (process.env.LOGIN_TEST_ONLY !== 'true') return next();
+  if (!isLoginTestOnly()) return next();
 
   const method = req.method.toUpperCase();
   const requestPath = req.originalUrl.split('?')[0];

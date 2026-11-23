@@ -7,6 +7,7 @@ const {
   PutObjectCommand,
   S3Client
 } = require('@aws-sdk/client-s3');
+const isLoginTestOnly = require('../utils/isLoginTestOnly');
 
 const localProofDirectory = path.join(__dirname, '..', 'private', 'payment-proofs');
 const uploadTempDirectory = path.join(os.tmpdir(), 'bipsu-bluebook-payment-proofs');
@@ -55,7 +56,7 @@ function validateConfiguration() {
   if (!['local', 's3'].includes(storageMode)) {
     throw new Error('PAYMENT_PROOF_STORAGE must be either "local" or "s3".');
   }
-  const loginTestOnly = process.env.LOGIN_TEST_ONLY === 'true';
+  const loginTestOnly = isLoginTestOnly();
   if (process.env.VERCEL && storageMode !== 's3' && !loginTestOnly) {
     throw new Error('Vercel deployments require PAYMENT_PROOF_STORAGE=s3.');
   }
