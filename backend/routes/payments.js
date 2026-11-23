@@ -489,6 +489,28 @@ router.post('/counter', requireRole('admin', 'cashier'), async (req, res, next) 
         );
       }
 
+      const product = await Product.findOneAndUpdate(
+        {
+          _id: order.product,
+          onHand: { $gte: order.quantity },
+          reserved: { $gte: order.quantity }
+        },
+        {
+          $inc: {
+            onHand: -order.quantity,
+            reserved: -order.quantity
+          }
+        },
+        { new: true, session }
+      );
+
+      if (!product) {
+        throw Object.assign(
+          new Error('Unable to deduct stock for the counter payment. Please check inventory.'),
+          { status: 409 }
+        );
+      }
+
       const [payment] = await Payment.create([{
         order: order._id,
         student: order.user,
@@ -502,6 +524,7 @@ router.post('/counter', requireRole('admin', 'cashier'), async (req, res, next) 
 
       order.status = 'PAID';
       order.paidAt = new Date();
+      order.stockDeductedAt = new Date();
       await order.save({ session });
 
       const [receipt] = await Receipt.create([{
