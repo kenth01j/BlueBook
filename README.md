@@ -5,7 +5,9 @@ A responsive Bluebook reservation and purchasing website using HTML, CSS, vanill
 ## Included in this build
 
 - Student registration and sign-in backed by MongoDB
-- Required student school selection (SNHS, STCS, STED, SBM, STHM, SAS, or SCJE) with order totals by school in admin reports
+- Required student school selection (SNHS, STCS, STED, SBM, STHM, SAS, SCJE, or SOE) with school choices managed by administrators and order totals by school in admin reports
+- Student self-service profile updates and account deactivation with retained transaction history
+- Student orders accepted daily from 8:00 AM up to (but not including) 5:00 PM Philippine time
 - Administrator account seeding from environment variables
 - Bluebook catalog backed by MongoDB
 - Online Bluebook purchases and reservations with GCash, Maya, or counter payment choices
@@ -160,13 +162,15 @@ The health endpoint should report `"database":"connected"` and an `"instance"` s
 7. Open **My orders** and view the generated QR code.
 
 Student accounts are not pre-seeded. Register a real test student account yourself.
+Students can edit their details and password from **My profile**. Deactivation is blocked while an order is active and preserves order/payment history.
 
 ## 8. Roles, payments, and sales
 
 - **Admin:** manage inventory, price, and orders; cancel eligible orders while retaining audit records; view daily, weekly, monthly, quarterly, and annual sales, order, claim, and cancellation reports, including order totals by student school, Bluebooks sold, and sales attributed to each handover cashier.
+- **Admin:** add or remove school codes in **Inventory management**. Removed schools are excluded from future registration and profile choices; existing student records and order reports are retained.
 - **Cashier:** review submitted GCash/Maya receipts, record counter payments, scan claim receipts using the camera, an uploaded QR image, or a USB/keyboard scanner, see shared inventory refresh every 30 seconds, review sales and quantity for orders they physically handed over, view their recent payment/claim history, and search student accounts by name or student ID (view-only). Camera scans record handover immediately; uploaded images are decoded locally and require selecting **Verify and claim**. Cashiers cannot update inventory.
 - **Admin:** manage inventory, orders, prices, cancellations, and reports. The Orders & claims page also supports camera, uploaded-image, and USB/keyboard claim-receipt scanning; claims are attributed to the admin account.
-- **Student:** choose a quantity within the admin-configured per-order limit and payment method, complete GCash, Maya, or counter payment, receive a notification after verification, then view/download the issued claim receipt and QR. Counter reservations expire after 8 hours if not paid. Existing orders retain the price recorded when they were created.
+- **Student:** place orders daily from 8:00 AM up to (but not including) 5:00 PM Philippine time; choose a quantity within the admin-configured per-order limit and payment method, complete GCash, Maya, or counter payment, receive a notification after verification, then view/download the issued claim receipt and QR. Students can manage their profile in **My profile**. Counter reservations expire after 8 hours if not paid. Existing orders retain the price recorded when they were created.
 - For temporary wallet payments, students upload a receipt image and staff verify it manually, matching the TIDES flow. This does not connect to GCash, Maya, or PayMongo. Add a real gateway only after merchant onboarding and webhook configuration.
 
 ## 9. Sign in as administrator

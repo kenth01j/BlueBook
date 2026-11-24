@@ -6,7 +6,8 @@ const Product = require('../models/Product');
 const Order = require('../models/Order');
 const Payment = require('../models/Payment');
 const AppSettings = require('../models/AppSettings');
-const schools = require('../utils/schools');
+const defaultSchools = require('../utils/schools');
+const { ensureSchoolSettings, getAvailableSchools } = require('../services/schoolSettings');
 
 const { requireAuth, requireRole } = require('../middleware/auth');
 
@@ -58,15 +59,65 @@ router.use(requireRole('admin'));
 
 router.get('/settings', async (_req, res, next) => {
   try {
-    const settings = await AppSettings.findOneAndUpdate(
-      { key: 'bluebook' },
-      { $setOnInsert: { counterExpirationHours: 8, maxOrderQuantity: 20 } },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
-    ).select('counterExpirationHours maxOrderQuantity');
+    const settings = await ensureSchoolSettings();
 
     res.json({
       counterExpirationHours: settings.counterExpirationHours,
-      maxOrderQuantity: settings.maxOrderQuantity || 20
+      maxOrderQuantity: settings.maxOrderQuantity || 20,
+      schools: settings.schools
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch('/settings/schools', async (req, res, next) => {
+  try {
+    const action = String(req.body.action || '');
+    const school = String(req.body.school || '').trim().toUpperCase();
+    if (!['add', 'remove'].includes(action)) {
+      return res.status(400).json({ message: 'Choose whether to add or remove a school.' });
+    }
+    if (!/^[A-Z][A-Z0-9]{1,9}$/.test(school)) {
+      return res.status(400).json({ message: 'Enter a school code using 2 to 10 letters or numbers.' });
+    }
+
+    const settings = await ensureSchoolSettings();
+    const schools = settings.schools.length ? settings.schools : defaultSchools;
+    let updatedSettings;
+    if (action === 'add') {
+      if (schools.includes(school)) {
+        return res.status(409).json({ message: `${school} is already in the school list.` });
+      }
+      updatedSettings = await AppSettings.findOneAndUpdate(
+        { key: 'bluebook', schools },
+        { $addToSet: { schools: school } },
+        { new: true, runValidators: true }
+      );
+    } else {
+      if (!schools.includes(school)) {
+        return res.status(404).json({ message: `${school} is not in the school list.` });
+      }
+      if (schools.length <= 1) {
+        return res.status(409).json({ message: 'At least one school must remain available.' });
+      }
+      updatedSettings = await AppSettings.findOneAndUpdate(
+        { key: 'bluebook', schools },
+        { $pull: { schools: school } },
+        { new: true, runValidators: true }
+      );
+    }
+
+    if (!updatedSettings) {
+      return res.status(409).json({
+        message: 'The school list changed in another session. Refresh and try again.'
+      });
+    }
+    res.json({
+      message: action === 'add'
+        ? `${school} was added to the school list.`
+        : `${school} was removed from future school choices. Existing accounts and order history are retained.`,
+      schools: updatedSettings.schools
     });
   } catch (error) {
     next(error);
@@ -210,7 +261,7 @@ function reportOrder(order, verifiedBy) {
     reference: order.reference,
     studentName: order.user?.name || '',
     studentId: order.user?.studentId || '',
-    school: order.user?.school || 'Not specified',
+    school: order.school || order.user?.school || 'Not specified',
     type: order.type,
     quantity: order.quantity,
     total: order.total,
@@ -329,7 +380,8 @@ router.get('/reports', async (req, res, next) => {
       salesRecords,
       orderRecords,
       claimRecords,
-      cancellationRecords
+      cancellationRecords,
+      activeSchools
     ] = await Promise.all([
       Order.aggregate([
         { $match: { status: 'CLAIMED', claimedAt } },
@@ -378,7 +430,7 @@ router.get('/reports', async (req, res, next) => {
         { $unwind: { path: '$student', preserveNullAndEmptyArrays: true } },
         {
           $group: {
-            _id: { $ifNull: ['$student.school', 'Not specified'] },
+            _id: { $ifNull: ['$school', { $ifNull: ['$student.school', 'Not specified'] }] },
             count: { $sum: 1 }
           }
         }
@@ -431,7 +483,8 @@ router.get('/reports', async (req, res, next) => {
         .limit(100)
         .populate('user', 'name studentId school')
         .populate('cancelledBy', 'name role')
-        .lean()
+        .lean(),
+      getAvailableSchools()
     ]);
 
     const reportOrders = [...salesRecords, ...orderRecords, ...claimRecords, ...cancellationRecords];
@@ -502,13 +555,14 @@ router.get('/reports', async (req, res, next) => {
         orders: {
           total: orderTotal,
           bySchool: [
-            ...schools.map(school => ({
+            ...activeSchools.map(school => ({
               school,
               count: orderCountsBySchool.get(school) || 0
             })),
-            ...(orderCountsBySchool.has('Not specified')
-              ? [{ school: 'Not specified', count: orderCountsBySchool.get('Not specified') }]
-              : [])
+            ...[...orderCountsBySchool.entries()]
+              .filter(([school]) => !activeSchools.includes(school))
+              .sort(([schoolA], [schoolB]) => schoolA.localeCompare(schoolB))
+              .map(([school, count]) => ({ school, count }))
           ],
           pending: (statusCounts.get('RESERVED') || 0) + (statusCounts.get('PENDING_PAYMENT') || 0),
           paid: (statusCounts.get('PAID') || 0) + (statusCounts.get('CLAIMED') || 0),

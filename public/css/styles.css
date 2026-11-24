@@ -924,6 +924,77 @@ body.dark input::placeholder {
   color: #9aabbe;
 }
 
+.auth-form select {
+  width: 100%;
+  border: 1px solid #dce3eb;
+  border-radius: 9px;
+  padding: 13px 14px;
+  outline: none;
+  color: var(--ink);
+  background: #fff;
+}
+
+.profile-form {
+  max-width: 620px;
+}
+
+.profile-deactivate-panel {
+  margin-top: 20px;
+}
+
+.profile-deactivate-panel h3 {
+  margin: 0 0 8px;
+  font: 800 14px Manrope;
+}
+
+.profile-deactivate-panel p {
+  margin: 0 0 15px;
+}
+
+.school-add-form {
+  display: grid;
+  gap: 8px;
+  max-width: 430px;
+  margin-bottom: 12px;
+}
+
+.school-add-form label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #42546a;
+}
+
+.school-add-form > div {
+  display: flex;
+  gap: 9px;
+}
+
+.school-add-form input {
+  min-width: 0;
+  flex: 1;
+  border: 1px solid #dce3eb;
+  border-radius: 9px;
+  padding: 10px 12px;
+  text-transform: uppercase;
+}
+
+.school-management-note {
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: .58;
+  transform: none;
+}
+
+body.dark .auth-form select {
+  background: var(--white);
+  border-color: var(--line);
+  color: var(--ink);
+}
+
 @media (max-width: 1050px) {
   .sidebar {
     width: 215px;

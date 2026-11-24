@@ -19,6 +19,7 @@ const state = {
   reportError: '',
   counterExpirationHours: 8,
   maxOrderQuantity: 20,
+  availableSchools: ['SNHS', 'STCS', 'STED', 'SBM', 'STHM', 'SAS', 'SCJE', 'SOE'],
   verifiedReceiptIds: null,
   dismissedNotificationOrderIds: new Set(),
   notificationSwipe: null,
@@ -34,6 +35,92 @@ const state = {
 
 const $ = (s, root = document) => root.querySelector(s);
 const $$ = (s, root = document) => [...root.querySelectorAll(s)];
+const philippineOrderTimeFormatter = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Asia/Manila',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23'
+});
+
+function isOrderWindowOpen() {
+  const timeParts = philippineOrderTimeFormatter.formatToParts(new Date());
+  const hour = Number(timeParts.find(part => part.type === 'hour')?.value);
+  const minute = Number(timeParts.find(part => part.type === 'minute')?.value);
+  const minuteOfDay = hour * 60 + minute;
+  return minuteOfDay >= 8 * 60 && minuteOfDay < 17 * 60;
+}
+
+function profilePage() {
+  return `
+    <div class="page-heading">
+      <div>
+        <span class="eyebrow eyebrow-blue">STUDENT ACCOUNT</span>
+        <h1>My profile</h1>
+        <p>View and update your account details, school, or password.</p>
+      </div>
+    </div>
+
+    <form id="profileForm" class="panel modal-form profile-form">
+      <label>
+        Full name
+        <input id="profileName" type="text" maxlength="100" value="${escapeHtml(state.user.name)}" required>
+      </label>
+      <label>
+        Student ID
+        <input id="profileStudentId" type="text" maxlength="50" value="${escapeHtml(state.user.studentId)}" required>
+      </label>
+      <label>
+        Designated school
+        <select id="profileSchool" required>${schoolOptions(state.user.school)}</select>
+      </label>
+      <label>
+        Email address
+        <input id="profileEmail" type="email" value="${escapeHtml(state.user.email)}" required>
+      </label>
+      <label>
+        Current password
+        <input id="profileCurrentPassword" type="password" autocomplete="current-password" required>
+      </label>
+      <label>
+        New password (optional)
+        <input id="profileNewPassword" type="password" minlength="8" autocomplete="new-password" placeholder="Leave blank to keep your current password">
+      </label>
+      <button class="btn btn-primary" type="submit">Save profile</button>
+    </form>
+
+    <section class="panel profile-deactivate-panel">
+      <h3>Deactivate profile</h3>
+      <p class="muted">Your account will be disabled. Order and payment history will be retained. Resolve active orders before deactivating.</p>
+      <button class="btn btn-light" type="button" data-deactivate-profile>Deactivate my account</button>
+    </section>
+  `;
+}
+
+function schoolOptions(selectedSchool = '') {
+  return `
+    <option value="" ${selectedSchool ? '' : 'selected disabled'}>Select your school</option>
+    ${state.availableSchools.map(school => `
+      <option value="${school}" ${selectedSchool === school ? 'selected' : ''}>${school}</option>
+    `).join('')}
+  `;
+}
+
+async function loadRegistrationSchools() {
+  const select = $('#registerSchool');
+  if (!select) return;
+
+  try {
+    const result = await api('/api/auth/schools');
+    state.availableSchools = result.schools;
+    const selectedSchool = select.value;
+    select.innerHTML = schoolOptions(selectedSchool);
+    select.disabled = false;
+  } catch (error) {
+    select.innerHTML = '<option value="">School list unavailable</option>';
+    select.disabled = true;
+    toast(`Could not load school choices: ${error.message}`);
+  }
+}
 
 function applyTheme(theme) {
   const isDark = theme === 'dark';
@@ -207,6 +294,7 @@ function setAuthTab(tab) {
     tab === 'login'
       ? 'Access your reservations and Bluebook orders.'
       : 'Register to reserve and purchase your Bluebook online.';
+  if (tab === 'register') loadRegistrationSchools();
 }
 
 function showApp(user) {
@@ -298,6 +386,7 @@ async function refreshData() {
   }
   if (state.user.role === 'student') {
     requests.push(api('/api/orders/limits'));
+    requests.push(api('/api/auth/schools'));
   }
   if (state.user.role === 'cashier') {
     requests.push(api('/api/payments'));
@@ -318,6 +407,7 @@ async function refreshData() {
   state.products = productData.products || [];
   state.orders = orderData.orders || [];
   if (state.user.role === 'student') {
+    state.availableSchools = results[3]?.schools || state.availableSchools;
     state.dismissedNotificationOrderIds = new Set(
       results[notificationDismissalIndex]?.orderIds || []
     );
@@ -330,6 +420,9 @@ async function refreshData() {
   state.counterExpirationHours = state.user.role === 'admin'
     ? Number(results[4]?.counterExpirationHours || 8)
     : state.counterExpirationHours;
+  if (state.user.role === 'admin') {
+    state.availableSchools = results[4]?.schools || state.availableSchools;
+  }
   state.maxOrderQuantity = state.user.role === 'admin'
     ? Number(results[4]?.maxOrderQuantity || 20)
     : state.user.role === 'student'
@@ -589,15 +682,17 @@ function syncCashierDashboardRefresh(page) {
 }
 
 async function refreshStudentStock() {
-  const [productData, orderData, limitsData, dismissalData] = await Promise.all([
+  const [productData, orderData, limitsData, schoolData, dismissalData] = await Promise.all([
     api('/api/products'),
     api('/api/orders/mine'),
     api('/api/orders/limits'),
+    api('/api/auth/schools'),
     api('/api/notifications/dismissed')
   ]);
   state.products = productData.products || [];
   state.orders = orderData.orders || [];
   state.maxOrderQuantity = Number(limitsData.maxOrderQuantity || 20);
+  state.availableSchools = schoolData.schools || state.availableSchools;
   state.dismissedNotificationOrderIds = new Set(dismissalData.orderIds || []);
   trackVerifiedPayments(state.orders, true);
   updateStudentOrderViews();
@@ -657,7 +752,7 @@ function updateStudentOrderViews() {
 async function navigate(page) {
   const role = state.user?.role;
   const allowedPages = {
-    student: ['dashboard', 'catalog', 'orders'],
+    student: ['dashboard', 'catalog', 'orders', 'profile'],
     cashier: ['cashierDashboard', 'manageStudents'],
     admin: ['adminDashboard', 'inventory', 'manageOrders', 'reports', 'manageStudents'],
     staff: ['adminDashboard', 'inventory', 'manageOrders']
@@ -694,6 +789,7 @@ async function navigate(page) {
     dashboard: 'Overview',
     catalog: 'Bluebook catalog',
     orders: 'My orders',
+    profile: 'My profile',
     adminDashboard: 'Overview',
     inventory: 'Inventory',
     manageOrders: 'Orders & claims',
@@ -731,6 +827,7 @@ function productArt() {
 }
 
 function productCard(p) {
+  const ordersOpen = isOrderWindowOpen();
   return `
     <article class="product-card">
       ${productArt()}
@@ -748,13 +845,14 @@ function productCard(p) {
           <button
             class="btn btn-primary btn-small"
             data-order-product="${p.id}"
-            ${p.stock <= 0 ? 'disabled' : ''}
+            ${p.stock <= 0 || !ordersOpen ? 'disabled' : ''}
           >
-            Reserve / Buy
+            ${ordersOpen ? 'Reserve / Buy' : 'Ordering closed'}
           </button>
         </div>
 
         <small class="muted" data-product-available="${escapeHtml(p.id)}">${p.stock} available</small>
+        <small class="muted">Orders daily, 8:00 AM–5:00 PM Philippine time.</small>
       </div>
     </article>
   `;
@@ -1046,7 +1144,7 @@ function studentDashboard() {
       <div class="stat-card">
         <div class="stat-top">ORDERING</div>
         <div class="stat-value">Online</div>
-        <div class="stat-foot">Reservation and purchasing</div>
+        <div class="stat-foot">Daily, 8:00 AM–5:00 PM Philippine time</div>
       </div>
     </div>
 
@@ -1088,8 +1186,8 @@ function catalogPage() {
         <span class="eyebrow eyebrow-blue">STUDENT STORE</span>
         <h1>Bluebook catalog</h1>
         <p>
-          Check availability and choose how you want
-          to get your Bluebook.
+          Orders are accepted daily from 8:00 AM to 5:00 PM Philippine time.
+          Check availability and choose how you want to get your Bluebook.
         </p>
       </div>
     </div>
@@ -1785,6 +1883,36 @@ function inventoryPage() {
         </button>
       </div>
     </div>
+
+    <div class="panel school-management-panel" style="margin-top:18px">
+      <div class="panel-title">
+        <div>
+          <h3>Student school choices</h3>
+          <p>Add or remove the schools available during registration and profile updates.</p>
+        </div>
+      </div>
+      <form id="schoolAddForm" class="school-add-form">
+        <label for="newSchoolCode">School code</label>
+        <div>
+          <input id="newSchoolCode" type="text" maxlength="10" pattern="[A-Za-z][A-Za-z0-9]{1,9}" placeholder="e.g. SOE" required>
+          <button class="btn btn-primary btn-small" type="submit">Add school</button>
+        </div>
+      </form>
+      <p class="muted school-management-note">Removing a school only removes it from future choices. Existing student accounts and reports are preserved; affected students must select an active school before placing new orders.</p>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>School</th><th>Action</th></tr></thead>
+          <tbody>
+            ${state.availableSchools.map(school => `
+              <tr>
+                <td><strong>${escapeHtml(school)}</strong></td>
+                <td><button class="btn btn-light btn-small" type="button" data-remove-school="${escapeHtml(school)}" ${state.availableSchools.length <= 1 ? 'disabled' : ''}>Remove</button></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
   `;
 }
 
@@ -1915,6 +2043,7 @@ function renderPage(page) {
     dashboard: studentDashboard,
     catalog: catalogPage,
     orders: ordersPage,
+    profile: profilePage,
     adminDashboard,
     cashierDashboard,
     inventory: inventoryPage,
@@ -1931,6 +2060,10 @@ function renderPage(page) {
 }
 
 function openOrderModal(productId) {
+  if (!isOrderWindowOpen()) {
+    return toast('Orders can be placed daily between 8:00 AM and 5:00 PM Philippine time.');
+  }
+
   const p = state.products.find(x => x.id === productId);
 
   if (!p || p.stock <= 0) {
@@ -2521,6 +2654,16 @@ function updateOrderLimit() {
   });
 }
 
+async function updateSchoolList(action, school) {
+  const result = await api('/api/admin/settings/schools', {
+    method: 'PATCH',
+    body: JSON.stringify({ action, school })
+  });
+  state.availableSchools = result.schools;
+  renderPage('inventory');
+  toast(result.message);
+}
+
 function updatePrice(productId) {
   const product = state.products.find(item => item.id === productId);
   if (!product) return;
@@ -2978,6 +3121,54 @@ async function cancelOrder(orderId) {
   }
 }
 
+async function updateStudentProfile(form) {
+  setBusy(form, true);
+  try {
+    const result = await api('/api/auth/me', {
+      method: 'PATCH',
+      body: JSON.stringify({
+        name: $('#profileName').value.trim(),
+        studentId: $('#profileStudentId').value.trim(),
+        school: $('#profileSchool').value,
+        email: $('#profileEmail').value.trim(),
+        currentPassword: $('#profileCurrentPassword').value,
+        newPassword: $('#profileNewPassword').value
+      })
+    });
+    state.user = result.user;
+    $('#headerName').textContent = state.user.name;
+    $('#avatarInitial').textContent = state.user.name.charAt(0).toUpperCase();
+    renderPage('profile');
+    toast(result.message);
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    setBusy(form, false);
+  }
+}
+
+async function deactivateStudentProfile() {
+  const confirmed = confirm(
+    'Deactivate your account? You will no longer be able to sign in, and your order/payment history will be retained.'
+  );
+  if (!confirmed) return;
+
+  const currentPassword = prompt('Enter your current password to confirm account deactivation:');
+  if (currentPassword === null) return;
+  if (!currentPassword) return toast('Enter your current password to continue.');
+
+  try {
+    const result = await api('/api/auth/me', {
+      method: 'DELETE',
+      body: JSON.stringify({ currentPassword })
+    });
+    logout(false);
+    toast(result.message);
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
 async function showClaimReceipt(receiptNumber) {
   setStudentNotificationPanel(false);
   try {
@@ -3153,6 +3344,21 @@ document.addEventListener('click', async e => {
     setAuthTab(auth.dataset.authTab);
   }
 
+  const removeSchoolButton = e.target.closest('[data-remove-school]');
+  if (removeSchoolButton) {
+    const school = removeSchoolButton.dataset.removeSchool;
+    const confirmed = window.confirm(
+      `Remove ${school} from future school choices? Existing accounts and order history will be retained.`
+    );
+    if (confirmed) {
+      try {
+        await updateSchoolList('remove', school);
+      } catch (error) {
+        toast(error.message);
+      }
+    }
+  }
+
   const go = e.target.closest('[data-go]');
 
   if (go) {
@@ -3253,6 +3459,10 @@ document.addEventListener('click', async e => {
     updateOrderLimit();
   }
 
+  if (e.target.closest('[data-deactivate-profile]')) {
+    deactivateStudentProfile();
+  }
+
   const receipt = e.target.closest('[data-show-receipt]');
 
   if (receipt) {
@@ -3308,6 +3518,27 @@ document.addEventListener('change', async e => {
 });
 
 document.addEventListener('submit', async e => {
+  const schoolForm = e.target.closest('#schoolAddForm');
+  if (schoolForm) {
+    e.preventDefault();
+    const button = $('button[type="submit"]', schoolForm);
+    button.disabled = true;
+    try {
+      await updateSchoolList('add', $('#newSchoolCode', schoolForm).value.trim());
+    } catch (error) {
+      toast(error.message);
+      button.disabled = false;
+    }
+    return;
+  }
+
+  const profileForm = e.target.closest('#profileForm');
+  if (profileForm) {
+    e.preventDefault();
+    await updateStudentProfile(profileForm);
+    return;
+  }
+
   const form = e.target.closest('[data-cashier-scan-form]');
   if (!form) return;
   e.preventDefault();
@@ -3480,4 +3711,5 @@ async function restoreSession() {
   }
 }
 
+loadRegistrationSchools();
 restoreSession();

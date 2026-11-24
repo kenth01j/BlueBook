@@ -13,6 +13,8 @@ const claimPaidOrder = require('../services/claimPaidOrder');
 const scanClaimReceipt = require('../services/scanClaimReceipt');
 const assertVerifiedReceipt = require('../services/assertVerifiedReceipt');
 const { getOrderSettings, isValidOrderQuantity } = require('../services/orderSettings');
+const { getAvailableSchools, isAvailableSchool } = require('../services/schoolSettings');
+const { isOrderWindowOpen } = require('../utils/orderWindow');
 
 const { requireAuth, requireRole } = require('../middleware/auth');
 
@@ -168,6 +170,18 @@ router.post('/', async (req, res, next) => {
   let quantity = 0;
 
   try {
+    if (!isOrderWindowOpen()) {
+      return res.status(403).json({
+        message: 'Orders can be placed daily between 8:00 AM and 5:00 PM Philippine time.'
+      });
+    }
+
+    if (!isAvailableSchool(req.user.school, await getAvailableSchools())) {
+      return res.status(400).json({
+        message: 'Choose an active designated school in your profile before placing an order.'
+      });
+    }
+
     const { productId, type } = req.body;
     quantity = Number(req.body.quantity);
     const paymentMethod = String(
@@ -235,6 +249,7 @@ router.post('/', async (req, res, next) => {
     const order = await Order.create({
       reference,
       user: req.user._id,
+      school: req.user.school,
       product: product._id,
       productName: product.name,
       quantity,
