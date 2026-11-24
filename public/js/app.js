@@ -1509,7 +1509,7 @@ function reportRecordsTable(title, records, kind) {
       ? ['Claimed at', 'Handover cashier', 'Order reference', 'Student', 'Qty', 'Payment', 'Total']
       : kind === 'claims'
         ? ['Claimed at', 'Handover cashier', 'Order reference', 'Student', 'Qty', 'Total']
-        : ['Created', 'Cashier #', 'Order reference', 'Student', 'Type', 'Status', 'Qty', 'Total'];
+        : ['Created', 'Cashier #', 'Order reference', 'Student', 'School', 'Type', 'Status', 'Qty', 'Total'];
 
   return `
     <section class="panel report-panel">
@@ -1536,6 +1536,7 @@ function reportRecordsTable(title, records, kind) {
                 <td><strong>${escapeHtml(record.reference)}</strong></td>
                 <td>${escapeHtml(record.studentName || '—')}</td>
                 ${kind === 'orders' ? `
+                  <td>${escapeHtml(record.school || 'Not specified')}</td>
                   <td>${record.type === 'PURCHASE' ? 'Online purchase' : 'Reservation'}</td>
                   <td><span class="status ${statusClass(record.status)}">${prettyStatus(record.status)}</span></td>
                 ` : ''}
@@ -1548,6 +1549,32 @@ function reportRecordsTable(title, records, kind) {
                     ${record.manualRefundRequired ? '<small class="muted" style="display:block;margin-top:5px">Manual refund required</small>' : ''}
                   </td>
                 ` : ''}
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  `;
+}
+
+function schoolOrderCountsTable(records) {
+  return `
+    <section class="panel report-panel">
+      <div class="panel-title">
+        <div>
+          <h3>Orders by school</h3>
+          <p>Order count by the student's designated school for this report period.</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr><th>School</th><th>Orders</th></tr></thead>
+          <tbody>
+            ${records.map(record => `
+              <tr>
+                <td><strong>${escapeHtml(record.school)}</strong></td>
+                <td>${Number(record.count) || 0}</td>
               </tr>
             `).join('')}
           </tbody>
@@ -1639,6 +1666,7 @@ function adminReportContent() {
     <div class="report-records-grid">
       ${reportRecordsTable('Sales records', report.sales.records, 'sales')}
       ${reportRecordsTable('Orders created', report.orders.records, 'orders')}
+      ${schoolOrderCountsTable(report.orders.bySchool || [])}
       ${reportRecordsTable('Bluebook claims', report.claims.records, 'claims')}
       ${cashierSalesTable(report.cashierSales)}
       ${reportRecordsTable('Cancelled orders', report.cancellations.records, 'cancellations')}
@@ -1813,6 +1841,7 @@ function studentResultsTable(students) {
           <tr>
             <th>Student</th>
             <th>Student ID</th>
+            <th>School</th>
             <th>Email</th>
             <th>Account</th>
             <th>Orders</th>
@@ -1823,6 +1852,7 @@ function studentResultsTable(students) {
             <tr>
               <td><strong>${escapeHtml(student.name)}</strong></td>
               <td>${escapeHtml(student.studentId)}</td>
+              <td>${escapeHtml(student.school || 'Not specified')}</td>
               <td>${escapeHtml(student.email)}</td>
               <td>${student.active ? 'Active' : 'Inactive'}</td>
               <td>${student.totalOrders}</td>
@@ -3323,6 +3353,7 @@ $('#registerForm').addEventListener('submit', async e => {
       body: JSON.stringify({
         name: $('#registerName').value.trim(),
         studentId: $('#registerStudentId').value.trim(),
+        school: $('#registerSchool').value,
         email: $('#registerEmail').value.trim(),
         password: $('#registerPassword').value
       })

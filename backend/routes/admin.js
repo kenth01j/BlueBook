@@ -6,6 +6,7 @@ const Product = require('../models/Product');
 const Order = require('../models/Order');
 const Payment = require('../models/Payment');
 const AppSettings = require('../models/AppSettings');
+const schools = require('../utils/schools');
 
 const { requireAuth, requireRole } = require('../middleware/auth');
 
@@ -22,7 +23,7 @@ router.get('/students', requireRole('admin', 'cashier'), async (req, res, next) 
       role: 'student',
       $or: [{ name: matcher }, { studentId: matcher }]
     })
-      .select('name studentId email active createdAt')
+      .select('name studentId school email active createdAt')
       .sort({ name: 1 })
       .limit(20)
       .lean();
@@ -41,6 +42,7 @@ router.get('/students', requireRole('admin', 'cashier'), async (req, res, next) 
         id: student._id,
         name: student.name,
         studentId: student.studentId || '',
+        school: student.school || '',
         email: student.email,
         active: student.active,
         createdAt: student.createdAt,
@@ -181,6 +183,7 @@ function reportOrder(order, verifiedBy) {
     reference: order.reference,
     studentName: order.user?.name || '',
     studentId: order.user?.studentId || '',
+    school: order.user?.school || 'Not specified',
     type: order.type,
     quantity: order.quantity,
     total: order.total,
@@ -293,6 +296,7 @@ router.get('/reports', async (req, res, next) => {
       salesRows,
       cashierSalesRows,
       orderStatusRows,
+      schoolOrderRows,
       claimRows,
       cancellationRows,
       salesRecords,
@@ -335,6 +339,24 @@ router.get('/reports', async (req, res, next) => {
         }
       ]),
       Order.aggregate([
+        { $match: { createdAt } },
+        {
+          $lookup: {
+            from: User.collection.name,
+            localField: 'user',
+            foreignField: '_id',
+            as: 'student'
+          }
+        },
+        { $unwind: { path: '$student', preserveNullAndEmptyArrays: true } },
+        {
+          $group: {
+            _id: { $ifNull: ['$student.school', 'Not specified'] },
+            count: { $sum: 1 }
+          }
+        }
+      ]),
+      Order.aggregate([
         { $match: { status: 'CLAIMED', claimedAt } },
         {
           $group: {
@@ -362,25 +384,25 @@ router.get('/reports', async (req, res, next) => {
       Order.find({ status: 'CLAIMED', claimedAt })
         .sort({ claimedAt: -1 })
         .limit(100)
-        .populate('user', 'name studentId')
+        .populate('user', 'name studentId school')
         .populate('claimedBy', 'name role')
         .lean(),
       Order.find({ createdAt })
         .sort({ createdAt: -1 })
         .limit(100)
-        .populate('user', 'name studentId')
+        .populate('user', 'name studentId school')
         .populate('cancelledBy', 'name role')
         .lean(),
       Order.find({ status: 'CLAIMED', claimedAt })
         .sort({ claimedAt: -1 })
         .limit(100)
-        .populate('user', 'name studentId')
+        .populate('user', 'name studentId school')
         .populate('claimedBy', 'name role')
         .lean(),
       Order.find({ status: 'CANCELLED', cancelledAt })
         .sort({ cancelledAt: -1 })
         .limit(100)
-        .populate('user', 'name studentId')
+        .populate('user', 'name studentId school')
         .populate('cancelledBy', 'name role')
         .lean()
     ]);
@@ -428,6 +450,7 @@ router.get('/reports', async (req, res, next) => {
     });
 
     const statusCounts = new Map(orderStatusRows.map(row => [row._id, row.count]));
+    const orderCountsBySchool = new Map(schoolOrderRows.map(row => [row._id, row.count]));
     const orderTotal = orderStatusRows.reduce((sum, row) => sum + row.count, 0);
     const sales = salesRows[0] || { revenue: 0, quantity: 0, orders: 0 };
     const claims = claimRows[0] || { count: 0, quantity: 0, amount: 0 };
@@ -451,6 +474,15 @@ router.get('/reports', async (req, res, next) => {
         cashierSales,
         orders: {
           total: orderTotal,
+          bySchool: [
+            ...schools.map(school => ({
+              school,
+              count: orderCountsBySchool.get(school) || 0
+            })),
+            ...(orderCountsBySchool.has('Not specified')
+              ? [{ school: 'Not specified', count: orderCountsBySchool.get('Not specified') }]
+              : [])
+          ],
           pending: (statusCounts.get('RESERVED') || 0) + (statusCounts.get('PENDING_PAYMENT') || 0),
           paid: (statusCounts.get('PAID') || 0) + (statusCounts.get('CLAIMED') || 0),
           expired: statusCounts.get('EXPIRED') || 0,
