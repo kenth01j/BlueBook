@@ -24,6 +24,7 @@ A responsive Bluebook reservation and purchasing website using HTML, CSS, vanill
 - A paid claim QR contains a receipt identifier that the server checks against the issued receipt and its verified GCash, Maya, or counter-payment record. An unpaid counter reservation QR only identifies the reservation; it cannot claim a Bluebook.
 - Admin order cancellation that preserves audit/report records, restores or releases stock, and flags paid orders for manual refunds
 - Admin inventory controls for updating stock and Bluebook price
+- Admin-configurable maximum quantity per student order (defaults to 20; configurable from 1 to 1,000)
 - Staff/admin claim and admin cancellation operations with MongoDB transactions
 - Automatic expiration of unpaid orders and release of reserved stock
 - Node.js cluster mode for parallel HTTP request handling across multiple local worker processes, with shared MongoDB-backed authentication rate limits
@@ -165,7 +166,7 @@ Student accounts are not pre-seeded. Register a real test student account yourse
 - **Admin:** manage inventory, price, and orders; cancel eligible orders while retaining audit records; view daily, weekly, monthly, quarterly, and annual sales, order, claim, and cancellation reports, including order totals by student school, Bluebooks sold, and sales attributed to each handover cashier.
 - **Cashier:** review submitted GCash/Maya receipts, record counter payments, scan claim receipts using the camera, an uploaded QR image, or a USB/keyboard scanner, see shared inventory refresh every 30 seconds, review sales and quantity for orders they physically handed over, view their recent payment/claim history, and search student accounts by name or student ID (view-only). Camera scans record handover immediately; uploaded images are decoded locally and require selecting **Verify and claim**. Cashiers cannot update inventory.
 - **Admin:** manage inventory, orders, prices, cancellations, and reports. The Orders & claims page also supports camera, uploaded-image, and USB/keyboard claim-receipt scanning; claims are attributed to the admin account.
-- **Student:** choose quantity and payment method, complete GCash, Maya, or counter payment, receive a notification after verification, then view/download the issued claim receipt and QR. Counter reservations expire after 8 hours if not paid. Existing orders retain the price recorded when they were created.
+- **Student:** choose a quantity within the admin-configured per-order limit and payment method, complete GCash, Maya, or counter payment, receive a notification after verification, then view/download the issued claim receipt and QR. Counter reservations expire after 8 hours if not paid. Existing orders retain the price recorded when they were created.
 - For temporary wallet payments, students upload a receipt image and staff verify it manually, matching the TIDES flow. This does not connect to GCash, Maya, or PayMongo. Add a real gateway only after merchant onboarding and webhook configuration.
 
 ## 9. Sign in as administrator

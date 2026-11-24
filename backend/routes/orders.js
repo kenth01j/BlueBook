@@ -12,13 +12,22 @@ const Payment = require('../models/Payment');
 const claimPaidOrder = require('../services/claimPaidOrder');
 const scanClaimReceipt = require('../services/scanClaimReceipt');
 const assertVerifiedReceipt = require('../services/assertVerifiedReceipt');
-const { getCounterExpirationHours } = require('../services/orderSettings');
+const { getOrderSettings, isValidOrderQuantity } = require('../services/orderSettings');
 
 const { requireAuth, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
 
 router.use(requireAuth);
+
+router.get('/limits', requireRole('student'), async (_req, res, next) => {
+  try {
+    const { maxOrderQuantity } = await getOrderSettings();
+    res.json({ maxOrderQuantity });
+  } catch (error) {
+    next(error);
+  }
+});
 
 function verificationLabel(user) {
   if (user?.role === 'cashier') return user.name || 'Cashier';
@@ -184,9 +193,10 @@ router.post('/', async (req, res, next) => {
       });
     }
 
-    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 20) {
+    const orderSettings = await getOrderSettings();
+    if (!isValidOrderQuantity(quantity, orderSettings.maxOrderQuantity)) {
       return res.status(400).json({
-        message: 'Quantity must be between 1 and 20.'
+        message: `Quantity must be a whole number between 1 and ${orderSettings.maxOrderQuantity}.`
       });
     }
 
@@ -219,7 +229,7 @@ router.post('/', async (req, res, next) => {
       `BB-${Date.now().toString().slice(-8)}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
 
     const counterExpirationHours = paymentMethod === 'CASH'
-      ? await getCounterExpirationHours()
+      ? orderSettings.counterExpirationHours
       : 24;
 
     const order = await Order.create({

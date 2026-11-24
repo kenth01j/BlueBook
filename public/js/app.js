@@ -18,6 +18,7 @@ const state = {
   reportLoading: false,
   reportError: '',
   counterExpirationHours: 8,
+  maxOrderQuantity: 20,
   verifiedReceiptIds: null,
   dismissedNotificationOrderIds: new Set(),
   notificationSwipe: null,
@@ -295,6 +296,9 @@ async function refreshData() {
     requests.push(api('/api/payments'));
     requests.push(api('/api/admin/settings'));
   }
+  if (state.user.role === 'student') {
+    requests.push(api('/api/orders/limits'));
+  }
   if (state.user.role === 'cashier') {
     requests.push(api('/api/payments'));
   }
@@ -326,6 +330,11 @@ async function refreshData() {
   state.counterExpirationHours = state.user.role === 'admin'
     ? Number(results[4]?.counterExpirationHours || 8)
     : state.counterExpirationHours;
+  state.maxOrderQuantity = state.user.role === 'admin'
+    ? Number(results[4]?.maxOrderQuantity || 20)
+    : state.user.role === 'student'
+      ? Number(results[2]?.maxOrderQuantity || 20)
+      : state.maxOrderQuantity;
   state.cashierDashboard = state.user.role === 'cashier'
     ? results[3]?.dashboard || null
     : null;
@@ -580,13 +589,15 @@ function syncCashierDashboardRefresh(page) {
 }
 
 async function refreshStudentStock() {
-  const [productData, orderData, dismissalData] = await Promise.all([
+  const [productData, orderData, limitsData, dismissalData] = await Promise.all([
     api('/api/products'),
     api('/api/orders/mine'),
+    api('/api/orders/limits'),
     api('/api/notifications/dismissed')
   ]);
   state.products = productData.products || [];
   state.orders = orderData.orders || [];
+  state.maxOrderQuantity = Number(limitsData.maxOrderQuantity || 20);
   state.dismissedNotificationOrderIds = new Set(dismissalData.orderIds || []);
   trackVerifiedPayments(state.orders, true);
   updateStudentOrderViews();
@@ -1758,6 +1769,22 @@ function inventoryPage() {
         </button>
       </div>
     </div>
+
+    <div class="panel" style="margin-top:18px">
+      <div class="panel-title">
+        <div>
+          <h3>Maximum quantity per order</h3>
+          <p>Set the maximum number of Bluebooks a student can request in one order.</p>
+        </div>
+      </div>
+      <div style="padding:0 20px 20px">
+        <strong>${Number(state.maxOrderQuantity)} Bluebooks</strong>
+        <p class="muted">Applies to new orders and is also enforced by the server.</p>
+        <button class="btn btn-light btn-small" type="button" data-edit-order-limit>
+          Update per-order limit
+        </button>
+      </div>
+    </div>
   `;
 }
 
@@ -1936,11 +1963,12 @@ function openOrderModal(productId) {
               id="orderQuantity"
               type="number"
               min="1"
-              max="${Math.min(20, p.stock)}"
+              max="${Math.min(state.maxOrderQuantity, p.stock)}"
               value="1"
               required
             >
           </label>
+          <p class="muted">Maximum ${Number(state.maxOrderQuantity)} per order; subject to available stock.</p>
 
           <div class="order-summary">
             <span>Step 1</span>
@@ -2430,6 +2458,59 @@ function updateCounterExpiration() {
         })
       });
       state.counterExpirationHours = Number(result.counterExpirationHours);
+      $('#modalRoot').innerHTML = '';
+      renderPage(state.page);
+      toast(result.message);
+    } catch (error) {
+      submitButton.disabled = false;
+      toast(error.message);
+    }
+  });
+}
+
+function updateOrderLimit() {
+  $('#modalRoot').innerHTML = `
+    <div class="modal-backdrop">
+      <div class="modal">
+        <div class="modal-head">
+          <div>
+            <h3>Update maximum quantity per order</h3>
+            <p>Applies to new student orders</p>
+          </div>
+          <button class="modal-close" data-close-modal>×</button>
+        </div>
+        <form id="orderLimitForm" class="modal-form">
+          <label>
+            Maximum Bluebooks per order
+            <input
+              id="maxOrderQuantity"
+              type="number"
+              min="1"
+              max="1000"
+              step="1"
+              value="${Number(state.maxOrderQuantity)}"
+              required
+            >
+          </label>
+          <p class="muted">Choose a whole number from 1 to 1,000. Available stock may impose a lower limit.</p>
+          <button class="btn btn-primary btn-full" type="submit">Save per-order limit</button>
+        </form>
+      </div>
+    </div>
+  `;
+
+  $('#orderLimitForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    const submitButton = $('#orderLimitForm button[type="submit"]');
+    submitButton.disabled = true;
+    try {
+      const result = await api('/api/admin/settings/order-limit', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          maxOrderQuantity: Number($('#maxOrderQuantity').value)
+        })
+      });
+      state.maxOrderQuantity = Number(result.maxOrderQuantity);
       $('#modalRoot').innerHTML = '';
       renderPage(state.page);
       toast(result.message);
@@ -3166,6 +3247,10 @@ document.addEventListener('click', async e => {
 
   if (e.target.closest('[data-edit-counter-expiration]')) {
     updateCounterExpiration();
+  }
+
+  if (e.target.closest('[data-edit-order-limit]')) {
+    updateOrderLimit();
   }
 
   const receipt = e.target.closest('[data-show-receipt]');

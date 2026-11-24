@@ -60,11 +60,14 @@ router.get('/settings', async (_req, res, next) => {
   try {
     const settings = await AppSettings.findOneAndUpdate(
       { key: 'bluebook' },
-      { $setOnInsert: { counterExpirationHours: 8 } },
+      { $setOnInsert: { counterExpirationHours: 8, maxOrderQuantity: 20 } },
       { upsert: true, new: true, setDefaultsOnInsert: true }
-    ).select('counterExpirationHours');
+    ).select('counterExpirationHours maxOrderQuantity');
 
-    res.json({ counterExpirationHours: settings.counterExpirationHours });
+    res.json({
+      counterExpirationHours: settings.counterExpirationHours,
+      maxOrderQuantity: settings.maxOrderQuantity || 20
+    });
   } catch (error) {
     next(error);
   }
@@ -88,6 +91,30 @@ router.patch('/settings/counter-expiration', async (req, res, next) => {
     res.json({
       message: `Counter reservation expiration updated to ${hours} hour${hours === 1 ? '' : 's'}. Existing reservations keep their original payment deadline.`,
       counterExpirationHours: settings.counterExpirationHours
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch('/settings/order-limit', async (req, res, next) => {
+  try {
+    const maxOrderQuantity = Number(req.body.maxOrderQuantity);
+    if (!Number.isInteger(maxOrderQuantity) || maxOrderQuantity < 1 || maxOrderQuantity > 1000) {
+      return res.status(400).json({
+        message: 'The per-order limit must be a whole number from 1 to 1000.'
+      });
+    }
+
+    const settings = await AppSettings.findOneAndUpdate(
+      { key: 'bluebook' },
+      { $set: { maxOrderQuantity } },
+      { upsert: true, new: true, setDefaultsOnInsert: true, runValidators: true }
+    ).select('maxOrderQuantity');
+
+    res.json({
+      message: `The maximum quantity per order is now ${settings.maxOrderQuantity}.`,
+      maxOrderQuantity: settings.maxOrderQuantity
     });
   } catch (error) {
     next(error);
